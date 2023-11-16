@@ -2,8 +2,6 @@
 ####Supervised machine learning####
 ####Part 1: required R packages####
 
-#Testedit
-
 #install.packages("tidyverse")
 library(tidyverse)
 
@@ -215,7 +213,37 @@ dfAllSeqs$Sequence <- as.character(dfAllSeqs$Sequence)
 
 table(dfAllSeqs$Marker_Code)
 
-#COI has the smaller sequence size, so we will use that as the basis for setting sample sizes for our analysis. First, we will write code to set the COI sequence amount size as a new variable smaller_sample for use in later code.
+#Zach - to investigate the distribution of species within each gene, we can prepare a table.
+
+
+#Find counts of each species using the table function converted to a dataframe, specifically for CYTB first.
+Species_Table_cytb <- as.data.frame(table(dfAllSeqs$Species_Name[dfAllSeqs$Marker_Code == "CYTB"]))
+
+#Name the columns
+names(Species_Table_cytb) <- c("Species_Name", "CYTB_Frequency")
+
+#Repeat for COI
+Species_Table_coi <- as.data.frame(table(dfAllSeqs$Species_Name[dfAllSeqs$Marker_Code == "COI"]))
+names(Species_Table_coi) <- c("Species_Name", "COI_Frequency")
+
+#Now merge these tables
+Species_Table <- merge(Species_Table_cytb, Species_Table_coi, by = "Species_Name", all = TRUE)
+
+#Change all species with no representation in one gene form NA's to 0's
+Species_Table[is.na(Species_Table)] <- 0
+
+#Add a column to quantify the difference in frequency between the two genes, as a % of the sum of each genes frequency count. This provides a relative measure of the difference as a percentage.
+
+Species_Table$Difference_perc <- round(abs(Species_Table$CYTB_Frequency - Species_Table$COI_Frequency) /
+  (Species_Table$CYTB_Frequency + Species_Table$COI_Frequency),2)*100
+
+#Zach - Looking at the results briefly
+head(Species_Table)
+
+#Zach - Since there are large discrepancies in species distribution between the two genes in the data - it is possible that species characteristics can play a role in the classification. A further analysis of classifier performance could use a subset of the data with a difference % cutoff using a table like the above.
+
+
+#COI has the smaller sample size, so we will use that as the basis for setting sample sizes for our analysis. First, we will write code to set the COI sequence amount size as a new variable smaller_sample for use in later code.
 
 smaller_sample <- min(table(dfAllSeqs$Marker_Code))
 smaller_sample
