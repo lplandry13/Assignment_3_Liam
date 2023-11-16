@@ -124,6 +124,27 @@ hist(nchar(dfCYTB_main$Sequence), xlab = "Sequence Length", main = "Histogram of
 
 hist(nchar(dfCOI_main$Sequence), xlab = "Sequence Length", main = "Histogram of COI Sequence Length")
 
+#Zach - Could Consider including some summary statistics of the sequence lengths here. Since K-mer could be indirectly influenced by sequence length, this could influence classifier bias.
+
+#Calculate in variables
+mean_COI <- mean(nchar(dfCOI_main$Sequence))
+sd_COI <- sd(nchar(dfCOI_main$Sequence))
+
+mean_CYTB <- mean(nchar(dfCYTB_main$Sequence))
+sd_CYTB <- sd(nchar(dfCYTB_main$Sequence))
+
+#Print as a summary data frame
+summ_table <- data.frame(
+  Gene = c("COI", "CYTB"),
+  Mean_Length = c(mean_COI, mean_CYTB),
+  SD_Length = c(sd_COI, sd_CYTB)
+)
+
+print(summ_table)
+
+#Zach - There is a lot more variation in CYTB, which is consistent with the literature. It would be interesting to use a subset of the data with matching sequence lengths to see if sequence length is an important contributor to the classifier through it's indirect effect on k-mer frequency.
+
+
 #The filtering by sequence length has worked. We can now move forward knowing that the data we are looking at includes only the genes we are analyzing. Before moving on, remove the test data as it won't be necessary for further analysis.
 
 rm(coi_search_test, cytb_search_test, dfCOI_test, dfCYTB_test)
