@@ -377,3 +377,58 @@ treepred <- predict(prune.trees, newdata = test, type = "class")
 confusionMatrix(treepred, test$Marker_Code)
 
 #This method had 99.8% accuracy with all of the k-mer data and without any additions to run size in the tree function, so for a data set of this size, classification trees seem to be a good alternative to random Forest!
+
+####Part 5: Controlled Length - random Forest machine learning####
+
+#Zach - To assess if the random Forest classifier performs with sequence length controlled for, create a subset of the initial merged dataframe that contains only sequences of length corresponding to a narrow range. In a more comprehensive script, we would assess different ranges of sequence legnths; however, in this one we will just look at a length for which we get a reasonable sample size representation for both genes.
+
+#Zach - create max and max length variables to facilitate quick changes as we test out various ranges.
+
+min_length <- 640
+max_length <- 730
+
+#Zach - this range preserves a good sample size for both.
+#Subset the data to contain sequences within the above specified range.
+dfAllSeqs_eq_len <- dfAllSeqs[nchar(dfAllSeqs$Sequence) >= min_length & nchar(dfAllSeqs$Sequence) <= max_length, ]
+
+#Zach - Check count by marker code.
+table(dfAllSeqs_eq_len$Marker_Code)
+
+#Zach - Now create validation and training data sets, with same randomization seeds and %'s as before.
+
+smaller_sample2 <- min(table(dfAllSeqs_eq_len$Marker_Code))
+smaller_sample2
+
+set.seed(001)
+
+df_setlength_validation <- dfAllSeqs_eq_len %>%
+  group_by(Marker_Code) %>%
+  sample_n(floor(0.2 * smaller_sample2))
+
+table(df_setlength_validation$Marker_Code)
+
+#Zach - and for training set
+set.seed(002)
+
+df_setlength_training <- dfAllSeqs_eq_len %>%
+  filter(!Title %in% df_setlength_validation$Title) %>%
+  group_by(Marker_Code) %>%
+  sample_n(ceiling(0.8 * smaller_sample2))
+
+table(df_setlength_training$Marker_Code)
+
+#Zach - Now train the best classifier from before, as a starting point.
+
+gene_classifier_setlength <- randomForest::randomForest(x = df_setlength_training[, 9:347], y = as.factor(df_setlength_training$Marker_Code), ntree = 1000, importance = TRUE)
+
+gene_classifier_setlength
+
+#Looks good so far, now test on validation set.
+
+predict_validation_setlength <- predict(gene_classifier_setlength, df_setlength_validation[, c(3, 9:347)])
+
+#Print the confusion matrix to the screen. 
+
+table(observed = df_setlength_validation$Marker_Code, predicted = predict_validation_setlength)
+
+#This makes it apparent that differences in sequence length are not likely having a significant impact on the RandomForest classifications, since we do not lose accuracy. 
