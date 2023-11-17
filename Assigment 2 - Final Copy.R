@@ -33,6 +33,25 @@ library(tree)
 #install.packages("e1071")
 library(e1071)
 
+#Zach - Define Functions
+
+#Zach - We can standardize the process of modifying the data frames extracted from NCBI
+
+#Zach - Here, we specifiy what the markercode column should contain, otherwise a blank is added by default.
+process_df <- function(df, marker_code = "") {
+  
+  #Zach - Pull out the second and third words from the Title column for species name
+  df$Species_Name <- word(df$Title, 2L, 3L)
+  
+  #Zach - Arrange the columns as desired
+  df <- df[, c("Title", "Species_Name", "Sequence")]
+  
+  #Zach - Set the Marker_Code with the specified value when calling the function
+  df$Marker_Code <- marker_code
+  
+  return(df)
+}
+
 ####Part 2: NCBI data extraction####
 
 #This first section of code is for searching the NCBI database for all sequences of both the COX1 and COI gene in the subfamily Leuciscinae. Since we do not know the sequence length of the genes, we will first run without the SLEN search term in order to generate a histogram of all sequence lengths. This will allows us to determine what to set the range of our SLEN search to.
@@ -58,16 +77,11 @@ FetchFastaFiles(searchTerm = "Leuciscinae[ORGN] AND COI[Gene]", seqsPerFile = 10
 
 dfCOI_test <- MergeFastaFiles(filePattern = "Leuciscinae_COI_test*")
 
-#Next is altering the data frame to make a new column for species names
+#Zach - modify the data frames with our function, process_df.
+dfCYTB_test <- process_df(dfCYTB_test, marker_code = "CYTB")
+dfCOI_test <- process_df(dfCOI_test, marker_code = "COI")
 
-dfCYTB_test$Species_Name <- word(dfCYTB_test$Title, 2L, 3L)
-
-dfCYTB_test <- dfCYTB_test[, c("Title", "Species_Name", "Sequence")]
 view(dfCYTB_test)
-
-dfCOI_test$Species_Name <- word(dfCOI_test$Title, 2L, 3L)
-
-dfCOI_test <- dfCOI_test[, c("Title", "Species_Name", "Sequence")]
 view(dfCOI_test)
 
 #Here is the code to make histogram to look at spread of sequence length
@@ -95,27 +109,11 @@ FetchFastaFiles(searchTerm = "Leuciscinae[ORGN] AND COI[Gene] AND 0:2500 [SLEN]"
 
 dfCOI_main <- MergeFastaFiles(filePattern = "Leuciscinae_COI_main*")
 
-#Now to clean up the new data frames like we did before.
+#Zach - Use the process_df function again.
+dfCYTB_main <- process_df(dfCYTB_main, marker_code = "CYTB")
+dfCOI_main <- process_df(dfCOI_main, marker_code = "COI")
 
-dfCYTB_main$Species_Name <- word(dfCYTB_main$Title, 2L, 3L)
-
-#This time, let's also make a new column for the marker code.
-
-dfCYTB_main$Marker_Code <- c("CYTB")
-
-#And order the columns as before.
-
-dfCYTB_main <- dfCYTB_main[, c("Title", "Species_Name", "Marker_Code", "Sequence")]
 view(dfCYTB_main)
-
-#Repeat for the COI gene.
-
-dfCOI_main$Species_Name <- word(dfCOI_main$Title, 2L, 3L)
-
-dfCOI_main$Marker_Code <- c("COI")
-
-dfCOI_main <- dfCOI_main[, c("Title", "Species_Name", "Marker_Code", "Sequence")]
-
 view(dfCOI_main)
 
 #Now we generate the histograms again to ensure that the full genomes were filtered out. 
@@ -123,6 +121,27 @@ view(dfCOI_main)
 hist(nchar(dfCYTB_main$Sequence), xlab = "Sequence Length", main = "Histogram of CYTB Sequence Length")
 
 hist(nchar(dfCOI_main$Sequence), xlab = "Sequence Length", main = "Histogram of COI Sequence Length")
+
+#Zach - could Consider including some summary statistics of the sequence lengths here. Since K-mer could be indirectly influenced by sequence length, this could influence classifier bias.
+
+#Calculate in variables
+mean_COI <- mean(nchar(dfCOI_main$Sequence))
+sd_COI <- sd(nchar(dfCOI_main$Sequence))
+
+mean_CYTB <- mean(nchar(dfCYTB_main$Sequence))
+sd_CYTB <- sd(nchar(dfCYTB_main$Sequence))
+
+#Print as a summary data frame
+summ_table <- data.frame(
+  Gene = c("COI", "CYTB"),
+  Mean_Length = c(mean_COI, mean_CYTB),
+  SD_Length = c(sd_COI, sd_CYTB)
+)
+
+print(summ_table)
+
+#Zach - There is a lot more variation in CYTB, which is consistent with the literature. It would be interesting to use a subset of the data with matching sequence lengths to see if sequence length is an important contributor to the classifier through it's indirect effect on k-mer frequency.
+
 
 #The filtering by sequence length has worked. We can now move forward knowing that the data we are looking at includes only the genes we are analyzing. Before moving on, remove the test data as it won't be necessary for further analysis.
 
@@ -192,7 +211,37 @@ dfAllSeqs$Sequence <- as.character(dfAllSeqs$Sequence)
 
 table(dfAllSeqs$Marker_Code)
 
-#COI has the smaller sequence size, so we will use that as the basis for setting sample sizes for our analysis. First, we will write code to set the COI sequence amount size as a new variable smaller_sample for use in later code.
+#Zach - to investigate the distribution of species within each gene, we can prepare a table.
+
+
+#Find counts of each species using the table function converted to a dataframe, specifically for CYTB first.
+Species_Table_cytb <- as.data.frame(table(dfAllSeqs$Species_Name[dfAllSeqs$Marker_Code == "CYTB"]))
+
+#Name the columns
+names(Species_Table_cytb) <- c("Species_Name", "CYTB_Frequency")
+
+#Repeat for COI
+Species_Table_coi <- as.data.frame(table(dfAllSeqs$Species_Name[dfAllSeqs$Marker_Code == "COI"]))
+names(Species_Table_coi) <- c("Species_Name", "COI_Frequency")
+
+#Now merge these tables
+Species_Table <- merge(Species_Table_cytb, Species_Table_coi, by = "Species_Name", all = TRUE)
+
+#Change all species with no representation in one gene form NA's to 0's
+Species_Table[is.na(Species_Table)] <- 0
+
+#Add a column to quantify the difference in frequency between the two genes, as a % of the sum of each genes frequency count. This provides a relative measure of the difference as a percentage.
+
+Species_Table$Difference_perc <- round(abs(Species_Table$CYTB_Frequency - Species_Table$COI_Frequency) /
+  (Species_Table$CYTB_Frequency + Species_Table$COI_Frequency),2)*100
+
+#Zach - Looking at the results briefly
+head(Species_Table)
+
+#Zach - Since there are large discrepancies in species distribution between the two genes in the data - it is possible that species characteristics can play a role in the classification. A further analysis of classifier performance could use a subset of the data with a difference % cutoff using a table like the above.
+
+
+#COI has the smaller sample size, so we will use that as the basis for setting sample sizes for our analysis. First, we will write code to set the COI sequence amount size as a new variable smaller_sample for use in later code.
 
 smaller_sample <- min(table(dfAllSeqs$Marker_Code))
 smaller_sample
@@ -328,3 +377,58 @@ treepred <- predict(prune.trees, newdata = test, type = "class")
 confusionMatrix(treepred, test$Marker_Code)
 
 #This method had 99.8% accuracy with all of the k-mer data and without any additions to run size in the tree function, so for a data set of this size, classification trees seem to be a good alternative to random Forest!
+
+####Part 5: Controlled Length - random Forest machine learning####
+
+#Zach - To assess if the random Forest classifier performs with sequence length controlled for, create a subset of the initial merged dataframe that contains only sequences of length corresponding to a narrow range. In a more comprehensive script, we would assess different ranges of sequence legnths; however, in this one we will just look at a length for which we get a reasonable sample size representation for both genes.
+
+#Zach - create max and max length variables to facilitate quick changes as we test out various ranges.
+
+min_length <- 640
+max_length <- 730
+
+#Zach - this range preserves a good sample size for both.
+#Subset the data to contain sequences within the above specified range.
+dfAllSeqs_eq_len <- dfAllSeqs[nchar(dfAllSeqs$Sequence) >= min_length & nchar(dfAllSeqs$Sequence) <= max_length, ]
+
+#Zach - Check count by marker code.
+table(dfAllSeqs_eq_len$Marker_Code)
+
+#Zach - Now create validation and training data sets, with same randomization seeds and %'s as before.
+
+smaller_sample2 <- min(table(dfAllSeqs_eq_len$Marker_Code))
+smaller_sample2
+
+set.seed(001)
+
+df_setlength_validation <- dfAllSeqs_eq_len %>%
+  group_by(Marker_Code) %>%
+  sample_n(floor(0.2 * smaller_sample2))
+
+table(df_setlength_validation$Marker_Code)
+
+#Zach - and for training set
+set.seed(002)
+
+df_setlength_training <- dfAllSeqs_eq_len %>%
+  filter(!Title %in% df_setlength_validation$Title) %>%
+  group_by(Marker_Code) %>%
+  sample_n(ceiling(0.8 * smaller_sample2))
+
+table(df_setlength_training$Marker_Code)
+
+#Zach - Now train the best classifier from before, as a starting point.
+
+gene_classifier_setlength <- randomForest::randomForest(x = df_setlength_training[, 9:347], y = as.factor(df_setlength_training$Marker_Code), ntree = 1000, importance = TRUE)
+
+gene_classifier_setlength
+
+#Looks good so far, now test on validation set.
+
+predict_validation_setlength <- predict(gene_classifier_setlength, df_setlength_validation[, c(3, 9:347)])
+
+#Print the confusion matrix to the screen. 
+
+table(observed = df_setlength_validation$Marker_Code, predicted = predict_validation_setlength)
+
+#This makes it apparent that differences in sequence length are not likely having a significant impact on the RandomForest classifications, since we do not lose accuracy. 
