@@ -33,6 +33,25 @@ library(tree)
 #install.packages("e1071")
 library(e1071)
 
+#Zach - Define Functions
+
+#Zach - We can standardize the process of modifying the data frames extracted from NCBI
+
+#Zach - Here, we specifiy what the markercode column should contain, otherwise a blank is added by default.
+process_df <- function(df, marker_code = "") {
+  
+  #Zach - Pull out the second and third words from the Title column for species name
+  df$Species_Name <- word(df$Title, 2L, 3L)
+  
+  #Zach - Arrange the columns as desired
+  df <- df[, c("Title", "Species_Name", "Sequence")]
+  
+  #Zach - Set the Marker_Code with the specified value when calling the function
+  df$Marker_Code <- marker_code
+  
+  return(df)
+}
+
 ####Part 2: NCBI data extraction####
 
 #This first section of code is for searching the NCBI database for all sequences of both the COX1 and COI gene in the subfamily Leuciscinae. Since we do not know the sequence length of the genes, we will first run without the SLEN search term in order to generate a histogram of all sequence lengths. This will allows us to determine what to set the range of our SLEN search to.
@@ -58,16 +77,11 @@ FetchFastaFiles(searchTerm = "Leuciscinae[ORGN] AND COI[Gene]", seqsPerFile = 10
 
 dfCOI_test <- MergeFastaFiles(filePattern = "Leuciscinae_COI_test*")
 
-#Next is altering the data frame to make a new column for species names
+#Zach - modify the data frames with our function, process_df.
+dfCYTB_test <- process_df(dfCYTB_test, marker_code = "CYTB")
+dfCOI_test <- process_df(dfCOI_test, marker_code = "COI")
 
-dfCYTB_test$Species_Name <- word(dfCYTB_test$Title, 2L, 3L)
-
-dfCYTB_test <- dfCYTB_test[, c("Title", "Species_Name", "Sequence")]
 view(dfCYTB_test)
-
-dfCOI_test$Species_Name <- word(dfCOI_test$Title, 2L, 3L)
-
-dfCOI_test <- dfCOI_test[, c("Title", "Species_Name", "Sequence")]
 view(dfCOI_test)
 
 #Here is the code to make histogram to look at spread of sequence length
@@ -95,27 +109,11 @@ FetchFastaFiles(searchTerm = "Leuciscinae[ORGN] AND COI[Gene] AND 0:2500 [SLEN]"
 
 dfCOI_main <- MergeFastaFiles(filePattern = "Leuciscinae_COI_main*")
 
-#Now to clean up the new data frames like we did before.
+#Zach - Use the process_df function again.
+dfCYTB_main <- process_df(dfCYTB_main, marker_code = "CYTB")
+dfCOI_main <- process_df(dfCOI_main, marker_code = "COI")
 
-dfCYTB_main$Species_Name <- word(dfCYTB_main$Title, 2L, 3L)
-
-#This time, let's also make a new column for the marker code.
-
-dfCYTB_main$Marker_Code <- c("CYTB")
-
-#And order the columns as before.
-
-dfCYTB_main <- dfCYTB_main[, c("Title", "Species_Name", "Marker_Code", "Sequence")]
 view(dfCYTB_main)
-
-#Repeat for the COI gene.
-
-dfCOI_main$Species_Name <- word(dfCOI_main$Title, 2L, 3L)
-
-dfCOI_main$Marker_Code <- c("COI")
-
-dfCOI_main <- dfCOI_main[, c("Title", "Species_Name", "Marker_Code", "Sequence")]
-
 view(dfCOI_main)
 
 #Now we generate the histograms again to ensure that the full genomes were filtered out. 
@@ -124,7 +122,7 @@ hist(nchar(dfCYTB_main$Sequence), xlab = "Sequence Length", main = "Histogram of
 
 hist(nchar(dfCOI_main$Sequence), xlab = "Sequence Length", main = "Histogram of COI Sequence Length")
 
-#Zach - Could Consider including some summary statistics of the sequence lengths here. Since K-mer could be indirectly influenced by sequence length, this could influence classifier bias.
+#Zach - could Consider including some summary statistics of the sequence lengths here. Since K-mer could be indirectly influenced by sequence length, this could influence classifier bias.
 
 #Calculate in variables
 mean_COI <- mean(nchar(dfCOI_main$Sequence))
